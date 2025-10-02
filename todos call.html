@@ -2,147 +2,82 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <title>待辦事項管理</title>
+  <title>待辦事項提醒器</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     h1 { color: #333; }
-    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-    table, th, td { border: 1px solid #ccc; }
-    th, td { padding: 8px; text-align: center; }
     input, button { margin: 5px; padding: 5px; }
-    .form-box { margin-top: 20px; padding: 10px; border: 1px solid #ddd; }
+    ul { list-style: none; padding: 0; }
+    li { padding: 8px; border-bottom: 1px solid #ccc; }
   </style>
 </head>
 <body>
-  <h1>📋 待辦事項管理</h1>
+  <h1>待辦事項</h1>
 
-  <!-- 待辦清單 -->
-  <div>
-    <button onclick="loadTodos()">讀取待辦事項</button>
-    <table id="todoTable">
-      <thead>
-        <tr>
-          <th>日期</th>
-          <th>時間</th>
-          <th>名稱</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
+  <label>日期：</label>
+  <input type="date" id="todoDate">
+  <label>時間：</label>
+  <input type="time" id="todoTime">
+  <label>事項：</label>
+  <input type="text" id="todoTitle">
+  <button onclick="addTodo()">新增</button>
 
-  <!-- 新增 -->
-  <div class="form-box">
-    <h3>➕ 新增待辦</h3>
-    日期: <input type="date" id="addDate">
-    時間: <input type="time" id="addTime">
-    名稱: <input type="text" id="addName">
-    <button onclick="addTodo()">新增</button>
-  </div>
-
-  <!-- 更新 -->
-  <div class="form-box">
-    <h3>✏️ 更新待辦</h3>
-    舊資料 - 日期: <input type="date" id="oldDate">
-    時間: <input type="time" id="oldTime">
-    名稱: <input type="text" id="oldName"><br>
-    新資料 - 日期: <input type="date" id="newDate">
-    時間: <input type="time" id="newTime">
-    名稱: <input type="text" id="newName">
-    <button onclick="updateTodo()">更新</button>
-  </div>
-
-  <!-- 刪除 -->
-  <div class="form-box">
-    <h3>🗑️ 刪除待辦</h3>
-    日期: <input type="date" id="delDate">
-    時間: <input type="time" id="delTime">
-    名稱: <input type="text" id="delName">
-    <button onclick="deleteTodo()">刪除</button>
-  </div>
+  <h2>清單</h2>
+  <ul id="todoList"></ul>
 
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbwirhArJRzhoAZdoK7K3nuQrai6-N8zGd8BiPNrg-SgGas00szkkdmhCSrnaKVlPIq2/exec"; // 換成你的 Apps Script 網址
+    // ✅ 換成你的 Google Apps Script /exec URL
+    const API_URL = "https://script.google.com/macros/s/AKfycbwirhArJRzhoAZdoK7K3nuQrai6-N8zGd8BiPNrg-SgGas00szkkdmhCSrnaKVlPIq2/exec";
 
-    // 讀取待辦事項
+    // 載入待辦
     async function loadTodos() {
-      const res = await fetch(API_URL);
-      const data = await res.json();
-      const tbody = document.querySelector("#todoTable tbody");
-      tbody.innerHTML = "";
+      try {
+        const res = await fetch(API_URL);
+        const todos = await res.json();
 
-      data.forEach(todo => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${todo.date}</td>
-          <td>${todo.time}</td>
-          <td>${todo.name}</td>
-          <td><button onclick="prefillDelete('${todo.date}','${todo.time}','${todo.name}')">刪除</button></td>
-        `;
-        tbody.appendChild(tr);
-      });
+        // 按日期+時間排序
+        todos.sort((a, b) => {
+          return (a.date + " " + a.time).localeCompare(b.date + " " + b.time);
+        });
+
+        const list = document.getElementById("todoList");
+        list.innerHTML = "";
+        todos.forEach(todo => {
+          const li = document.createElement("li");
+          li.textContent = `${todo.date} ${todo.time} - ${todo.title}`;
+          list.appendChild(li);
+        });
+      } catch (err) {
+        console.error("載入失敗", err);
+      }
     }
 
-    // 新增
+    // 新增待辦
     async function addTodo() {
-      const todo = {
-        date: document.getElementById("addDate").value,
-        time: document.getElementById("addTime").value,
-        name: document.getElementById("addName").value
-      };
-      const res = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify(todo)
-      });
-      alert(await res.text());
-      loadTodos();
+      const date = document.getElementById("todoDate").value;
+      const time = document.getElementById("todoTime").value;
+      const title = document.getElementById("todoTitle").value;
+
+      if (!date || !time || !title) {
+        alert("請輸入完整的日期、時間和事項！");
+        return;
+      }
+
+      try {
+        await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify({ date, time, title }),
+          headers: { "Content-Type": "application/json" }
+        });
+        alert("新增成功！");
+        loadTodos();
+      } catch (err) {
+        console.error("新增失敗", err);
+      }
     }
 
-    // 更新
-    async function updateTodo() {
-      const payload = {
-        old: {
-          date: document.getElementById("oldDate").value,
-          time: document.getElementById("oldTime").value,
-          name: document.getElementById("oldName").value
-        },
-        new: {
-          date: document.getElementById("newDate").value,
-          time: document.getElementById("newTime").value,
-          name: document.getElementById("newName").value
-        }
-      };
-      const res = await fetch(API_URL, {
-        method: "PUT",
-        body: JSON.stringify(payload)
-      });
-      alert(await res.text());
-      loadTodos();
-    }
-
-    // 刪除
-    async function deleteTodo() {
-      const payload = {
-        date: document.getElementById("delDate").value,
-        time: document.getElementById("delTime").value,
-        name: document.getElementById("delName").value
-      };
-      const res = await fetch(API_URL, {
-        method: "DELETE",
-        body: JSON.stringify(payload)
-      });
-      alert(await res.text());
-      loadTodos();
-    }
-
-    // 快速填入刪除表單
-    function prefillDelete(date, time, name) {
-      document.getElementById("delDate").value = date;
-      document.getElementById("delTime").value = time;
-      document.getElementById("delName").value = name;
-    }
+    // 頁面載入時先抓一次
+    loadTodos();
   </script>
 </body>
 </html>
-
