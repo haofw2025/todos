@@ -35,9 +35,11 @@
         const res = await fetch(API_URL);
         const todos = await res.json();
 
-        // 按日期+時間排序
+        // 按日期+時間排序 (確保轉成 Date)
         todos.sort((a, b) => {
-          return (a.date + " " + a.time).localeCompare(b.date + " " + b.time);
+          const da = new Date(`${a.date}T${a.time}`);
+          const db = new Date(`${b.date}T${b.time}`);
+          return da - db;
         });
 
         const list = document.getElementById("todoList");
@@ -66,7 +68,11 @@
       try {
         await fetch(API_URL, {
           method: "POST",
-          body: JSON.stringify({ date, time, title }),
+          body: JSON.stringify({ 
+            date: String(date), 
+            time: String(time), 
+            title: String(title) 
+          }),
           headers: { "Content-Type": "application/json" }
         });
         alert("新增成功！");
