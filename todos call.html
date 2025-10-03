@@ -32,12 +32,14 @@ ul li button { margin-left: 10px; cursor: pointer; }
 </audio>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbwirhArJRzhoAZdoK7K3nuQrai6-N8zGd8BiPNrg-SgGas00szkkdmhCSrnaKVlPIq2/exec"; // 換成你的 Web App URL
+const API_URL = "https://script.google.com/macros/s/你的_NEW_EXEC_ID/exec"; // 換成你的 Web App URL
 
+// 申請通知權限
 function requestPermission() {
   if("Notification" in window) Notification.requestPermission();
 }
 
+// 播三聲提醒
 function playSound3Times() {
   const audio = document.getElementById("alertSound");
   let count = 0;
@@ -49,6 +51,7 @@ function playSound3Times() {
   }, 1000);
 }
 
+// 顯示提醒盒
 function showReminder(name){
   playSound3Times();
   const box = document.getElementById("reminderBox");
@@ -57,28 +60,38 @@ function showReminder(name){
   btn.id="closeBtn"; btn.innerText="知道了";
   btn.onclick=()=>{box.style.display="none";};
   box.appendChild(btn); box.style.display="block";
+
   if(Notification.permission==="granted"){
     new Notification("待辦提醒",{body:name,icon:"https://cdn-icons-png.flaticon.com/512/1827/1827370.png"});
   }
 }
 
-async function loadTodos(){
+// 載入待辦
+async function loadTodos() {
   const list=document.getElementById("todoList"); list.innerHTML="";
   try{
     const res=await fetch(API_URL,{method:"GET"});
-    const todos=await res.json();
+    let todos=await res.json();
+
+    // 排序：依日期+時間
+    todos.sort((a,b)=> new Date(`${a.date}T${a.time}:00`) - new Date(`${b.date}T${b.time}:00`));
+
     const now=new Date();
     todos.forEach((t,i)=>{
       const li=document.createElement("li");
       li.textContent=`${t.date} ${t.time} ➝ ${t.name}`;
+
       const delBtn=document.createElement("button");
       delBtn.textContent="刪除";
       delBtn.onclick=async()=>{
         await fetch(API_URL,{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"delete", index:i})});
         loadTodos();
       };
-      li.appendChild(delBtn); list.appendChild(li);
 
+      li.appendChild(delBtn);
+      list.appendChild(li);
+
+      // 設定提醒
       const targetTime=new Date(`${t.date}T${t.time}:00`);
       const delay=targetTime-now;
       if(delay>0) setTimeout(()=>showReminder(t.name),delay);
@@ -86,20 +99,28 @@ async function loadTodos(){
   }catch(err){console.error("讀取失敗：",err);}
 }
 
+// 新增待辦
 async function addTodo(){
   const name=document.getElementById("todoName").value.trim();
   const date=document.getElementById("todoDate").value;
   const time=document.getElementById("todoTime").value;
   if(!name || !date || !time){alert("請輸入名稱、日期和時間！"); return;}
+
   try{
-    await fetch(API_URL,{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name,date,time})});
+    await fetch(API_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name,date,time})
+    });
     loadTodos();
   }catch(err){console.error("新增失敗",err); alert("新增失敗，請確認 API_URL 或 Apps Script 權限設定！");}
+
   document.getElementById("todoName").value="";
   document.getElementById("todoDate").value="";
   document.getElementById("todoTime").value="";
 }
 
+// 初始載入
 window.onload=()=>{
   requestPermission();
   loadTodos();
