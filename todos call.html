@@ -1,47 +1,181 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwirhArJRzhoAZdoK7K3nuQrai6-N8zGd8BiPNrg-SgGas00szkkdmhCSrnaKVlPIq2/exec"; // 換成你部署的網址
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>待辦事項（線上版）</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+    h1 { color: #2c3e50; }
+    label { font-size: 16px; margin-right: 5px; }
+    input, button { font-size: 16px; padding: 5px; margin: 5px; }
+    #reminderBox {
+      display: none;
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: #fff3cd;
+      border: 2px solid #f0ad4e;
+      padding: 30px;
+      font-size: 24px;
+      font-weight: bold;
+      color: #856404;
+      text-align: center;
+      border-radius: 12px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.3);
+      z-index: 9999;
+      max-width: 80%;
+    }
+    #closeBtn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 18px;
+      background: #f0ad4e;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    ul { font-size: 16px; margin-top: 20px; text-align: left; display: inline-block; }
+    ul li button { font-size: 14px; margin-left: 10px; cursor: pointer; }
+  </style>
+  <script>
+    let todos = [];
+    const API_URL = "https://script.google.com/macros/s/AKfycbwirhArJRzhoAZdoK7K3nuQrai6-N8zGd8BiPNrg-SgGas00szkkdmhCSrnaKVlPIq2/exec"; // ⚠️換成你部署的網址
 
-async function loadTodos() {
-  const res = await fetch(API_URL);
-  todos = await res.json();
+    function requestPermission() {
+      if ("Notification" in window) Notification.requestPermission();
+    }
 
-  const list = document.getElementById("todoList");
-  list.innerHTML = "";
+    // 播放提示音（3次，每次間隔 1 秒）
+    function playSound3Times() {
+      const audio = document.getElementById("alertSound");
+      let count = 0;
+      const interval = setInterval(() => {
+        audio.currentTime = 0;
+        audio.play();
+        count++;
+        if (count >= 3) clearInterval(interval);
+      }, 1000);
+    }
 
-  todos.forEach((t, index) => {
-    const li = document.createElement("li");
-    li.textContent = `${t.date} ${t.time} ➝ ${t.name}`;
+    function showReminder(name) {
+      playSound3Times();
+      const box = document.getElementById("reminderBox");
+      box.innerHTML = `🔔 ${name} 開始了！<br>`;
+      const btn = document.createElement("button");
+      btn.id = "closeBtn";
+      btn.innerText = "知道了";
+      btn.onclick = () => { box.style.display = "none"; };
+      box.appendChild(btn);
+      box.style.display = "block";
 
-    const delBtn = document.createElement("button");
-    delBtn.textContent = "刪除";
-    delBtn.onclick = async () => {
-      await fetch(`${API_URL}?name=${encodeURIComponent(t.name)}`, { method: "DELETE" });
+      if (Notification.permission === "granted") {
+        new Notification("待辦提醒", { body: name, icon: "https://cdn-icons-png.flaticon.com/512/1827/1827370.png" });
+      }
+    }
+
+    async function loadTodos() {
+      const list = document.getElementById("todoList");
+      list.innerHTML = "";
+      const now = new Date();
+
+      const res = await fetch(API_URL);
+      todos = await res.json();
+
+      // 排序
+      todos = todos.filter(t => {
+        const target = new Date(`${t.date}T${t.time}:00`);
+        return target > now;
+      }).sort((a, b) => {
+        const dateA = new Date(`${a.date}T${a.time}:00`);
+        const dateB = new Date(`${b.date}T${b.time}:00`);
+        return dateA - dateB;
+      });
+
+      todos.forEach((t, index) => {
+        const li = document.createElement("li");
+        li.textContent = `${t.date} ${t.time} ➝ ${t.name}`;
+
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "刪除";
+        delBtn.onclick = async () => {
+          await fetch(`${API_URL}?name=${encodeURIComponent(t.name)}`, { method: "DELETE" });
+          loadTodos();
+        };
+
+        li.appendChild(delBtn);
+        list.appendChild(li);
+
+        // 設定提醒
+        const targetTime = new Date(`${t.date}T${t.time}:00`);
+        const delay = targetTime - now;
+        if (delay > 0) setTimeout(() => showReminder(t.name), delay);
+      });
+    }
+
+    async function addTodo() {
+      const name = document.getElementById("todoName").value.trim();
+      const date = document.getElementById("todoDate").value;
+      const time = document.getElementById("todoTime").value;
+
+      if (!name || !date || !time) {
+        alert("請輸入名稱、日期和時間！");
+        return;
+      }
+
+      await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify({ name, date, time }),
+        headers: { "Content-Type": "application/json" }
+      });
+
+      loadTodos();
+
+      document.getElementById("todoName").value = "";
+      document.getElementById("todoDate").value = "";
+      document.getElementById("todoTime").value = "";
+    }
+
+    window.onload = () => {
+      function updateClock() {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const h = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        const s = String(now.getSeconds()).padStart(2, '0');
+        document.getElementById("clock").textContent = `${y}-${m}-${d} ${h}:${min}:${s}`;
+      }
+      setInterval(updateClock, 1000);
+      updateClock();
+      requestPermission();
       loadTodos();
     };
+  </script>
+</head>
+<body>
+  <h1>📌 待辦事項（線上版）</h1>
+  <div id="clock" style="font-size: 20px; color: #34495e; margin-bottom: 20px;"></div>
+  <div>
+    <label>名稱：</label>
+    <input type="text" id="todoName" placeholder="輸入待辦事項"><br>
+    <label>日期：</label>
+    <input type="date" id="todoDate"><br>
+    <label>時間：</label>
+    <input type="time" id="todoTime">
+    <button onclick="addTodo()">新增</button>
+  </div>
 
-    li.appendChild(delBtn);
-    list.appendChild(li);
-  });
-}
+  <h2>已儲存待辦事項</h2>
+  <ul id="todoList"></ul>
 
-async function addTodo() {
-  const name = document.getElementById("todoName").value.trim();
-  const date = document.getElementById("todoDate").value;
-  const time = document.getElementById("todoTime").value;
+  <div id="reminderBox"></div>
 
-  if (!name || !date || !time) {
-    alert("請輸入名稱、日期和時間！");
-    return;
-  }
+  <audio id="alertSound">
+    <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
+    <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.mp3" type="audio/mpeg">
+  </audio>
+</body>
+</html>
 
-  await fetch(API_URL, {
-    method: "POST",
-    body: JSON.stringify({ name, date, time }),
-    headers: { "Content-Type": "application/json" }
-  });
 
-  loadTodos();
-
-  document.getElementById("todoName").value = "";
-  document.getElementById("todoDate").value = "";
-  document.getElementById("todoTime").value = "";
-}
