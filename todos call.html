@@ -132,11 +132,14 @@ async function loadTodos() {
 
 // 新增待辦
 async function addTodo() {
-  const name = document.getElementById("todoName").value.trim();
+    const name = document.getElementById("todoName").value.trim();
   const date = document.getElementById("todoDate").value;
   const time = document.getElementById("todoTime").value;
 
-  if (!name || !date || !time) { alert("請輸入名稱、日期和時間！"); return; }
+  if (!name || !date || !time) {
+    alert("請輸入名稱、日期和時間！");
+    return;
+  }
 
   try {
     const res = await fetch(API_URL, {
@@ -149,6 +152,7 @@ async function addTodo() {
     loadTodos();
   } catch (err) {
     console.error("新增失敗：", err);
+    alert("新增失敗，請檢查 API_URL 或權限設定！");
   }
 
   document.getElementById("todoName").value = "";
@@ -164,4 +168,5 @@ window.onload = () => {
 </script>
 </body>
 </html>
+
 
