@@ -1,133 +1,83 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8">
-<title>待辦事項</title>
-<style>
-body { font-family: Arial; text-align: center; padding: 20px; }
-input, button { font-size: 16px; margin: 5px; padding: 5px; }
-ul { list-style: none; padding: 0; text-align: left; display: inline-block; }
-ul li button { margin-left: 10px; cursor: pointer; }
-#reminderBox { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
-  background:#fff3cd; border:2px solid #f0ad4e; padding:30px; font-size:24px; font-weight:bold;
-  color:#856404; text-align:center; border-radius:12px; box-shadow:0 0 15px rgba(0,0,0,0.3); z-index:9999; max-width:80%; }
-#closeBtn { margin-top:20px; padding:10px 20px; font-size:18px; background:#f0ad4e; border:none; border-radius:8px; cursor:pointer; }
-</style>
+  <meta charset="UTF-8">
+  <title>待辦事項清單</title>
+  <style>
+    body { font-family: Arial; text-align: center; margin: 40px; }
+    input, button { margin: 5px; padding: 8px; font-size: 16px; }
+    ul { list-style: none; padding: 0; }
+    li { margin: 5px 0; }
+    button { cursor: pointer; }
+  </style>
 </head>
 <body>
-<h1>📌 待辦事項</h1>
+  <h1>待辦事項清單</h1>
 
-<label>名稱：</label><input type="text" id="todoName" placeholder="待辦事項"><br>
-<label>日期：</label><input type="date" id="todoDate"><br>
-<label>時間：</label><input type="time" id="todoTime">
-<button onclick="addTodo()">新增</button>
+  <input type="text" id="todoName" placeholder="待辦事項">
+  <input type="date" id="todoDate">
+  <input type="time" id="todoTime">
+  <button onclick="addTodo()">新增</button>
 
-<h2>已儲存待辦事項</h2>
-<ul id="todoList"></ul>
-<div id="reminderBox"></div>
+  <h2>目前待辦</h2>
+  <ul id="todoList"></ul>
 
-<audio id="alertSound">
-  <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
-  <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.mp3" type="audio/mpeg">
-</audio>
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbwirhArJRzhoAZdoK7K3nuQrai6-N8zGd8BiPNrg-SgGas00szkkdmhCSrnaKVlPIq2/exec";
 
-<script>
-const API_URL = "https://script.google.com/macros/s/AKfycbwirhArJRzhoAZdoK7K3nuQrai6-N8zGd8BiPNrg-SgGas00szkkdmhCSrnaKVlPIq2/exec"; // 換成你的 Web App URL
+    async function loadTodos() {
+      const list = document.getElementById("todoList");
+      list.innerHTML = "";
+      try {
+        const res = await fetch(API_URL);
+        const todos = await res.json();
+        todos.forEach(t => {
+          const li = document.createElement("li");
+          li.textContent = `${t.name} - ${t.date} ${t.time}`;
+          const del = document.createElement("button");
+          del.textContent = "刪除";
+          del.onclick = () => deleteTodo(t.name);
+          li.appendChild(del);
+          list.appendChild(li);
+        });
+      } catch (err) {
+        alert("載入失敗：" + err.message);
+      }
+    }
 
-// 申請通知權限
-function requestPermission() {
-  if("Notification" in window) Notification.requestPermission();
-}
+    async function addTodo() {
+      const name = document.getElementById("todoName").value.trim();
+      const date = document.getElementById("todoDate").value;
+      const time = document.getElementById("todoTime").value;
+      if (!name || !date || !time) return alert("請完整輸入資料！");
 
-// 播三聲提醒
-function playSound3Times() {
-  const audio = document.getElementById("alertSound");
-  let count = 0;
-  const interval = setInterval(() => {
-    audio.currentTime = 0;
-    audio.play();
-    count++;
-    if(count>=3) clearInterval(interval);
-  }, 1000);
-}
-
-// 顯示提醒盒
-function showReminder(name){
-  playSound3Times();
-  const box = document.getElementById("reminderBox");
-  box.innerHTML = `🔔 ${name} 開始了！<br>`;
-  const btn = document.createElement("button");
-  btn.id="closeBtn"; btn.innerText="知道了";
-  btn.onclick=()=>{box.style.display="none";};
-  box.appendChild(btn); box.style.display="block";
-
-  if(Notification.permission==="granted"){
-    new Notification("待辦提醒",{body:name,icon:"https://cdn-icons-png.flaticon.com/512/1827/1827370.png"});
-  }
-}
-
-// 載入待辦
-async function loadTodos() {
-  const list=document.getElementById("todoList"); list.innerHTML="";
-  try{
-    const res=await fetch(API_URL,{method:"GET"});
-    let todos=await res.json();
-
-    // 排序：依日期+時間
-    todos.sort((a,b)=> new Date(`${a.date}T${a.time}:00`) - new Date(`${b.date}T${b.time}:00`));
-
-    const now=new Date();
-    todos.forEach((t,i)=>{
-      const li=document.createElement("li");
-      li.textContent=`${t.date} ${t.time} ➝ ${t.name}`;
-
-      const delBtn=document.createElement("button");
-      delBtn.textContent="刪除";
-      delBtn.onclick=async()=>{
-        await fetch(API_URL,{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"delete", index:i})});
+      try {
+        await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify({ name, date, time }),
+          headers: { "Content-Type": "application/json" }
+        });
         loadTodos();
-      };
+      } catch (err) {
+        alert("新增失敗：" + err.message);
+      }
+    }
 
-      li.appendChild(delBtn);
-      list.appendChild(li);
+    async function deleteTodo(name) {
+      if (!confirm(`確定要刪除「${name}」嗎？`)) return;
+      try {
+        await fetch(API_URL + "?action=delete", {
+          method: "POST",
+          body: JSON.stringify({ name }),
+          headers: { "Content-Type": "application/json" }
+        });
+        loadTodos();
+      } catch (err) {
+        alert("刪除失敗：" + err.message);
+      }
+    }
 
-      // 設定提醒
-      const targetTime=new Date(`${t.date}T${t.time}:00`);
-      const delay=targetTime-now;
-      if(delay>0) setTimeout(()=>showReminder(t.name),delay);
-    });
-  }catch(err){console.error("讀取失敗：",err);}
-}
-
-// 新增待辦
-async function addTodo(){
-  const name=document.getElementById("todoName").value.trim();
-  const date=document.getElementById("todoDate").value;
-  const time=document.getElementById("todoTime").value;
-  if(!name || !date || !time){alert("請輸入名稱、日期和時間！"); return;}
-
-  try{
-    await fetch(API_URL,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({name,date,time})
-    });
     loadTodos();
-  }catch(err){console.error("新增失敗",err); alert("新增失敗，請確認 API_URL 或 Apps Script 權限設定！");}
-
-  document.getElementById("todoName").value="";
-  document.getElementById("todoDate").value="";
-  document.getElementById("todoTime").value="";
-}
-
-// 初始載入
-window.onload=()=>{
-  requestPermission();
-  loadTodos();
-};
-</script>
+  </script>
 </body>
 </html>
-
-
-
